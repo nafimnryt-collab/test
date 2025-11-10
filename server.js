@@ -523,6 +523,16 @@ app.post('/api/calls', async (req, res) => {
     try {
         const { fromAccountId, toAccountId, fromName, toName, roomId, type, meetingTitle } = req.body;
 
+        console.log('📞 Creating call:', {
+            fromAccountId,
+            toAccountId,
+            fromName,
+            toName,
+            roomId,
+            type,
+            meetingTitle
+        });
+
         let calls = [];
         try {
             const data = await fs.readFile(callsFile, 'utf-8');
@@ -545,8 +555,12 @@ app.post('/api/calls', async (req, res) => {
         calls.push(newCall);
         await fs.writeFile(callsFile, JSON.stringify(calls, null, 2));
 
+        console.log('✅ Call saved to file:', newCall.id);
+        console.log('📋 Total calls now:', calls.length);
+
         res.json({ success: true, call: newCall });
     } catch (error) {
+        console.error('❌ Error creating call:', error);
         res.status(500).json({ error: error.message });
     }
 });
@@ -787,19 +801,26 @@ app.get('/api/calls', async (req, res) => {
     try {
         const { toAccountId } = req.query;
 
+        console.log('🔍 GET /api/calls - toAccountId:', toAccountId);
+
         let calls = [];
         try {
             const data = await fs.readFile(callsFile, 'utf-8');
             calls = JSON.parse(data);
-        } catch {}
-
-        if (toAccountId) {
-            // Filter calls for this user
-            calls = calls.filter(call => call.toAccountId === toAccountId);
+            console.log('📋 Read calls from file:', calls.length, 'total calls');
+        } catch (err) {
+            console.log('⚠️  No calls file or empty:', err.message);
         }
 
+        if (toAccountId) {
+            calls = calls.filter(call => call.toAccountId === toAccountId);
+            console.log('📞 Filtered calls for user', toAccountId, ':', calls.length, 'calls');
+        }
+
+        console.log('📤 Returning calls:', calls);
         res.json(calls);
     } catch (error) {
+        console.error('❌ Error getting calls:', error);
         res.status(500).json({ error: error.message });
     }
 });

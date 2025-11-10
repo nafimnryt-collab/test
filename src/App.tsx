@@ -103,22 +103,25 @@ function App() {
         return () => clearInterval(interval);
     }, [account]);
 
-    // ✅ FIXED: Better call polling - check frequently and show ALL ringing calls
     useEffect(() => {
         if (!account) return;
 
         const checkCalls = async () => {
             try {
-                const response = await fetch(`${API_URL}/api/calls?toAccountId=${account.id}`);
+                const url = `${API_URL}/api/calls?toAccountId=${account.id}`;
+                console.log('🔍 Checking for calls:', url);
+
+                const response = await fetch(url);
                 if (response.ok) {
                     const calls = await response.json();
-                    const ringingCalls = calls.filter((call: any) => call.status === 'ringing');
+                    console.log('📋 All calls received:', calls);
 
-                    // Show the most recent ringing call
+                    const ringingCalls = calls.filter((call: any) => call.status === 'ringing');
+                    console.log('🔔 Ringing calls:', ringingCalls);
+
                     if (ringingCalls.length > 0) {
                         const latestCall = ringingCalls[0];
 
-                        // Only show if we're the recipient (not the caller)
                         if (latestCall.toAccountId === account.id && (!incomingCall || incomingCall.id !== latestCall.id)) {
                             console.log('📞 NEW INCOMING CALL:', latestCall);
 
@@ -133,11 +136,8 @@ function App() {
                             };
 
                             setIncomingCall(newCall);
-
-                            // Play ringtone
                             callRingtone.play().catch(err => console.error('Failed to play ringtone:', err));
 
-                            // Show browser notification
                             if (Notification.permission === 'granted') {
                                 new Notification('📞 Incoming Call', {
                                     body: `${latestCall.fromName} is calling you...`,
@@ -148,19 +148,20 @@ function App() {
                             }
                         }
                     } else if (ringingCalls.length === 0 && incomingCall) {
-                        // Call was answered or rejected
                         callRingtone.pause();
                         callRingtone.currentTime = 0;
                         setIncomingCall(null);
                     }
+                } else {
+                    console.error('❌ Failed to fetch calls:', response.status);
                 }
             } catch (error) {
-                console.error('Failed to check calls:', error);
+                console.error('❌ Failed to check calls:', error);
             }
         };
 
         checkCalls();
-        const interval = setInterval(checkCalls, 1000); // Check every 1 second
+        const interval = setInterval(checkCalls, 1000);
 
         return () => {
             clearInterval(interval);
@@ -237,28 +238,41 @@ function App() {
     const handleCallUser = async (targetAccountId: string, targetName: string) => {
         const callRoomId = `call-${account?.id}-${targetAccountId}-${Date.now()}`;
 
-        console.log('📞 Initiating call to:', targetName);
-
-        const response = await fetch(`${API_URL}/api/calls`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                fromAccountId: account?.id,
-                toAccountId: targetAccountId,
-                fromName: account?.fullName,
-                toName: targetName,
-                roomId: callRoomId,
-            }),
+        console.log('📞 Initiating call to:', targetName, 'with data:', {
+            fromAccountId: account?.id,
+            toAccountId: targetAccountId,
+            fromName: account?.fullName,
+            toName: targetName,
+            roomId: callRoomId,
         });
 
-        if (response.ok) {
-            const data = await response.json();
-            console.log('✅ Call initiated:', data);
-            if (data.call) {
-                localStorage.setItem('activeCallId', data.call.id);
+        try {
+            const response = await fetch(`${API_URL}/api/calls`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    fromAccountId: account?.id,
+                    toAccountId: targetAccountId,
+                    fromName: account?.fullName,
+                    toName: targetName,
+                    roomId: callRoomId,
+                }),
+            });
+
+            console.log('📡 Call API response status:', response.status);
+
+            if (response.ok) {
+                const data = await response.json();
+                console.log('✅ Call initiated successfully:', data);
+                if (data.call) {
+                    localStorage.setItem('activeCallId', data.call.id);
+                }
+            } else {
+                const errorData = await response.text();
+                console.error('❌ Failed to initiate call:', response.status, errorData);
             }
-        } else {
-            console.error('❌ Failed to initiate call');
+        } catch (error) {
+            console.error('❌ Error calling API:', error);
         }
 
         handleJoinMeeting(callRoomId);
